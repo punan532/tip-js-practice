@@ -347,13 +347,51 @@ check("35. Работа с другим набором, без зависимо�
   assert.deepEqual(tasks, before);
 });
 
-// Три собственных проверки можно добавить здесь, до итогового вывода,
-// либо выполнить отдельно и описать в отчёте. Общие проверки удалять не нужно.
-// Пример формы записи (не готовая проверка задания):
-// check("Собственный случай: ...", () => {
-//   const result = ...;
-//   assert.deepEqual(result, ...);
-// });
+// --- Собственные проверки (вариант 5) ---
+
+check("Собственная 1. Добавление после удаления: id не переиспользуется как индекс", () => {
+  const tasks = fixture();
+  const before = copyTasks(tasks);
+  // Удаляем id 4, затем добавляем id 4 снова: он свободен и должен добавиться в конец.
+  const removed = expectTasks(removeTask(tasks, 4));
+  assert.deepEqual(removed.map((task) => task.id), [1, 7, 10]);
+  const added = expectTasks(addTask(removed, 4, "Новая задача с прежним id", "low"));
+  assert.deepEqual(added.map((task) => task.id), [1, 7, 10, 4]);
+  assert.deepEqual(added[3], {
+    id: 4, title: "Новая задача с прежним id", completed: false, priority: "low",
+  });
+  assert.deepEqual(tasks, before);
+});
+
+check("Собственная 2. Изменение первой и последней записи", () => {
+  const tasks = fixture();
+  const before = copyTasks(tasks);
+  const first = expectTasks(setTaskCompleted(tasks, 1, false));
+  const last = expectTasks(renameTask(first, 10, "Последняя переименована"));
+  assert.equal(last[0].completed, false);
+  assert.equal(last[3].title, "Последняя переименована");
+  // Средние записи переиспользуются без копирования.
+  assert.equal(last[1], tasks[1]);
+  assert.equal(last[2], tasks[2]);
+  assert.deepEqual(getTaskStats(last), { total: 4, completed: 1, pending: 3, progress: 25 });
+  assert.deepEqual(tasks, before);
+});
+
+check("Собственная 3. Последовательное обновление нескольких задач и откат при отказе", () => {
+  const tasks = fixture();
+  const before = copyTasks(tasks);
+  let current = expectTasks(setTaskCompleted(tasks, 4, true));
+  current = expectTasks(setTaskCompleted(current, 7, true));
+  assert.deepEqual(getTaskStats(current), { total: 4, completed: 4, pending: 0, progress: 100 });
+  assert.deepEqual(getPendingTasks(current), []);
+  // Отказ не портит текущее состояние.
+  const snapshotBefore = copyTasks(current);
+  expectFailure(renameTask(current, 4, "   "));
+  expectFailure(removeTask(current, 999));
+  assert.deepEqual(current, snapshotBefore);
+  // Исходный массив тоже не затронут.
+  assert.deepEqual(tasks, before);
+});
 
 console.log(`\nПроверок пройдено: ${passed}; не пройдено: ${failed}.`);
 if (failed > 0) {
